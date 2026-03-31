@@ -1,0 +1,24 @@
+{
+  "files.exclude": {
+    "**/*.ts.txt": true,
+    "**/*.tsx.txt": true,
+    "**/*.js.txt": true,
+    "**/*.sql.txt": true
+  },
+  "search.exclude": {
+    "**/node_modules": true,
+    "**/*.ts.txt": true,
+    "**/*.tsx.txt": true,
+    "**/*.js.txt": true,
+    "**/*.sql.txt": true
+  },
+  "files.watcherExclude": {
+    "**/node_modules/**": true,
+    "**/backend/**": true,
+    "**/movile/**": true,
+    "**/shared/**": true,
+    "**/ai/**": true,
+    "**/database/**": true
+  },
+  "typescript.tsserver.maxTsServerMemory": 4096
+}

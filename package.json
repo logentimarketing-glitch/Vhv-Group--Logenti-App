@@ -1,0 +1,31 @@
+{
+  "name": "vhv_app",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Sistema interno VHV Group / Logenti (App + Web + Backend + IA)",
+  "scripts": {
+    "dev": "npm run dev:web",
+    "dev:all": "concurrently \"npm run dev:web\" \"npm run dev:backend\"",
+
+    "dev:web": "cd web && npm run dev",
+    "dev:backend": "cd backend && npm run dev",
+    "dev:mobile": "echo \"Modulo movil aun no esta configurado para correr\"",
+
+    "install:all": "npm install && cd web && npm install",
+
+    "build:web": "cd web && npm run build",
+    "start:web": "cd web && npm start",
+
+    "build:backend": "echo \"Backend no requiere build por ahora\"",
+    "start:backend": "cd backend && npm start",
+
+    "lint": "echo \"Add lint later\"",
+    "format": "echo \"Add prettier later\""
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

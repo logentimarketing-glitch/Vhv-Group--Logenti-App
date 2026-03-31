@@ -1,0 +1,17 @@
+CREATE TABLE candidates (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  email TEXT NOT NULL UNIQUE,
+  role TEXT NOT NULL,
+  stage TEXT NOT NULL,
+  score INTEGER NOT NULL DEFAULT 0,
+  notes TEXT,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE candidate_tags (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  candidate_id TEXT NOT NULL,
+  tag TEXT NOT NULL,
+  FOREIGN KEY (candidate_id) REFERENCES candidates(id)
+);

@@ -1,0 +1,30 @@
+{
+  "compilerOptions": {
+    "target": "ESNext",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "jsx": "preserve",
+    "strict": true,
+    "allowJs": true,
+    "skipLibCheck": true,
+    "noEmit": true,
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["web/*"]
+    }
+  },
+  "include": [
+    "web/next-env.d.ts",
+    "web/**/*.ts",
+    "web/**/*.tsx"
+  ],
+  "exclude": [
+    "node_modules",
+    "web/node_modules",
+    "backend",
+    "movile",
+    "shared",
+    "ai",
+    "database"
+  ]
+}
