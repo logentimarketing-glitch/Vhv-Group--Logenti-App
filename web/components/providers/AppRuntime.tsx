@@ -38,6 +38,68 @@ function hasContent(value: unknown) {
   return Boolean(value);
 }
 
+function mergeListById<T extends { id: string; createdAt?: string }>(localItems: T[], remoteItems: T[]) {
+  const merged = new Map<string, T>();
+
+  for (const item of remoteItems) {
+    merged.set(item.id, item);
+  }
+
+  for (const item of localItems) {
+    const existing = merged.get(item.id);
+    if (!existing) {
+      merged.set(item.id, item);
+      continue;
+    }
+
+    const existingDate = Date.parse(existing.createdAt ?? "");
+    const itemDate = Date.parse(item.createdAt ?? "");
+    merged.set(item.id, Number.isNaN(itemDate) || existingDate > itemDate ? existing : item);
+  }
+
+  return Array.from(merged.values()).sort((a, b) => {
+    const aDate = Date.parse(a.createdAt ?? "");
+    const bDate = Date.parse(b.createdAt ?? "");
+    return (Number.isNaN(bDate) ? 0 : bDate) - (Number.isNaN(aDate) ? 0 : aDate);
+  });
+}
+
+function mergeProfiles(
+  localProfiles: Record<string, unknown>,
+  remoteProfiles: Record<string, unknown>,
+) {
+  const merged = { ...remoteProfiles } as Record<string, unknown>;
+
+  for (const [matricula, localValue] of Object.entries(localProfiles)) {
+    const remoteValue = remoteProfiles[matricula];
+
+    if (!remoteValue || typeof remoteValue !== "object" || remoteValue === null) {
+      merged[matricula] = localValue;
+      continue;
+    }
+
+    if (!localValue || typeof localValue !== "object") {
+      continue;
+    }
+
+    const localProfile = localValue as Record<string, unknown>;
+    const remoteProfile = remoteValue as Record<string, unknown>;
+
+    merged[matricula] = {
+      ...remoteProfile,
+      ...localProfile,
+      photoUrl: typeof localProfile.photoUrl === "string" && localProfile.photoUrl.trim()
+        ? localProfile.photoUrl
+        : remoteProfile.photoUrl,
+      bio: typeof localProfile.bio === "string" && localProfile.bio.trim()
+        ? localProfile.bio
+        : remoteProfile.bio,
+    };
+  }
+
+  return merged;
+}
+
 function buildLocalSnapshot(user: RuntimeUser | null) {
   const members = readStorage(STORAGE_KEYS.members, memberSeeds);
   const storedProfiles = readStorage<Record<string, unknown>>(PROFILE_REGISTRY_KEY, {});
@@ -75,15 +137,25 @@ function buildLocalSnapshot(user: RuntimeUser | null) {
 }
 
 function hydrateFromRemote(remote: RemoteStatePayload, user: RuntimeUser | null) {
+  const localSnapshot = buildLocalSnapshot(user);
+  const mergedNews = mergeListById(
+    (localSnapshot.news as Array<{ id: string; createdAt?: string }>) ?? [],
+    (remote.news as Array<{ id: string; createdAt?: string }>) ?? [],
+  );
+  const mergedProfiles = mergeProfiles(
+    (localSnapshot.profiles as Record<string, unknown>) ?? {},
+    remote.profiles ?? {},
+  );
+
   writeStorage(STORAGE_KEYS.members, remote.members);
-  writeStorage(STORAGE_KEYS.news, remote.news);
+  writeStorage(STORAGE_KEYS.news, mergedNews);
   writeStorage(STORAGE_KEYS.courses, remote.courses);
   writeStorage(STORAGE_KEYS.courseContent, remote.courseContent);
   writeStorage(STORAGE_KEYS.connections, remote.connections);
   writeStorage(STORAGE_KEYS.vacancies, remote.vacancies);
   writeStorage(STORAGE_KEYS.candidates, remote.candidates);
   writeStorage(STORAGE_KEYS.support, remote.supportThreads);
-  const nextProfiles = { ...(remote.profiles ?? {}) } as Record<string, unknown>;
+  const nextProfiles = { ...mergedProfiles } as Record<string, unknown>;
   const syncedNotifications = Array.isArray(nextProfiles[NOTIFICATIONS_PROFILE_KEY])
     ? nextProfiles[NOTIFICATIONS_PROFILE_KEY]
     : [];
