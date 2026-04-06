@@ -45,6 +45,7 @@ export function LmsHub({ user }: LmsHubProps) {
   const [assignmentMap, setAssignmentMap] = useState<Record<string, PortalCourseAssignment[]>>({});
   const [progressMap, setProgressMap] = useState<Record<string, PortalCourseProgress[]>>({});
   const [title, setTitle] = useState("");
+  const [summary, setSummary] = useState("");
   const [courseRole, setCourseRole] = useState<PortalCourse["role"]>("novato");
   const [accessCode, setAccessCode] = useState("");
   const [selectedCourseId, setSelectedCourseId] = useState("");
@@ -55,6 +56,7 @@ export function LmsHub({ user }: LmsHubProps) {
   const [resourceUrl, setResourceUrl] = useState("");
   const [dueDate, setDueDate] = useState("");
   const [lockedMessage, setLockedMessage] = useState("");
+  const [editingContentId, setEditingContentId] = useState("");
 
   const mergedMembers = useMemo(() => {
     const byMatricula = new Map<string, PortalMember>();
@@ -114,7 +116,8 @@ export function LmsHub({ user }: LmsHubProps) {
       title: title.trim(),
       role: courseRole,
       accessCode: accessCode.trim(),
-      summary: "Curso creado por administracion. El contenido puede cargarse por enlace y seguimiento.",
+      summary:
+        summary.trim() || "Curso creado por administracion. El contenido puede cargarse por enlace y seguimiento.",
       managedBy: "admin",
       kind: "curso",
       visibleInBot: true,
@@ -128,6 +131,7 @@ export function LmsHub({ user }: LmsHubProps) {
 
     saveCourses([nextCourse, ...courses]);
     setTitle("");
+    setSummary("");
     setAccessCode("");
     setCourseRole("novato");
   }
@@ -150,19 +154,24 @@ export function LmsHub({ user }: LmsHubProps) {
     if (!permissions?.canManageCourses || !selectedCourseId || !itemTitle.trim()) return;
 
     const nextItem: PortalCourseContent = {
-      id: crypto.randomUUID(),
+      id: editingContentId || crypto.randomUUID(),
       courseId: selectedCourseId,
       type: itemType,
       title: itemTitle.trim(),
       description: itemDescription.trim(),
       resourceUrl: normalizeMediaUrl(resourceUrl),
       dueDate: itemType === "asignacion" && dueDate.trim() ? dueDate : undefined,
-      createdAt: new Date().toISOString(),
+      createdAt:
+        (contentMap[selectedCourseId] ?? []).find((item) => item.id === editingContentId)?.createdAt ??
+        new Date().toISOString(),
     };
 
     saveContent({
       ...contentMap,
-      [selectedCourseId]: [nextItem, ...(contentMap[selectedCourseId] ?? [])],
+      [selectedCourseId]: [
+        nextItem,
+        ...(contentMap[selectedCourseId] ?? []).filter((item) => item.id !== nextItem.id),
+      ],
     });
 
     setItemType("texto");
@@ -170,6 +179,91 @@ export function LmsHub({ user }: LmsHubProps) {
     setItemDescription("");
     setResourceUrl("");
     setDueDate("");
+    setEditingContentId("");
+  }
+
+  function loadCourseForEdit() {
+    if (!selectedCourse) return;
+    setTitle(selectedCourse.title);
+    setSummary(selectedCourse.summary);
+    setAccessCode(selectedCourse.accessCode);
+    setCourseRole(selectedCourse.role);
+  }
+
+  function updateCourse() {
+    if (!permissions?.canManageCourses || !selectedCourse || !title.trim() || !accessCode.trim()) return;
+
+    saveCourses(
+      courses.map((course) =>
+        course.id === selectedCourse.id
+          ? {
+              ...course,
+              title: title.trim(),
+              summary:
+                summary.trim() || "Curso creado por administracion. El contenido puede cargarse por enlace y seguimiento.",
+              role: courseRole,
+              accessCode: accessCode.trim(),
+              allowedStatuses:
+                courseRole === "administrador"
+                  ? ["ADMIN"]
+                  : courseRole === "novato"
+                    ? ["TRAINEE"]
+                    : ["ACTIVE_EMPLOYEE"],
+            }
+          : course,
+      ),
+    );
+  }
+
+  function deleteCourse() {
+    if (!permissions?.canManageCourses || !selectedCourse) return;
+
+    const nextCourses = courses.filter((course) => course.id !== selectedCourse.id);
+    const nextContentMap = { ...contentMap };
+    const nextAssignmentMap = { ...assignmentMap };
+    const nextProgressMap = { ...progressMap };
+
+    delete nextContentMap[selectedCourse.id];
+    delete nextAssignmentMap[selectedCourse.id];
+    delete nextProgressMap[selectedCourse.id];
+
+    saveCourses(nextCourses);
+    saveContent(nextContentMap);
+    saveAssignments(nextAssignmentMap);
+    setProgressMap(nextProgressMap);
+    window.localStorage.setItem(STORAGE_KEYS.courseProgress, JSON.stringify(nextProgressMap));
+    setSelectedCourseId("");
+    setTitle("");
+    setSummary("");
+    setAccessCode("");
+    setCourseRole("novato");
+  }
+
+  function editCourseContent(item: PortalCourseContent) {
+    setEditingContentId(item.id);
+    setItemType(item.type);
+    setItemTitle(item.title);
+    setItemDescription(item.description);
+    setResourceUrl(item.resourceUrl);
+    setDueDate(item.dueDate ?? "");
+  }
+
+  function deleteCourseContent(itemId: string) {
+    if (!permissions?.canManageCourses || !selectedCourseId) return;
+
+    saveContent({
+      ...contentMap,
+      [selectedCourseId]: (contentMap[selectedCourseId] ?? []).filter((item) => item.id !== itemId),
+    });
+
+    if (editingContentId === itemId) {
+      setEditingContentId("");
+      setItemType("texto");
+      setItemTitle("");
+      setItemDescription("");
+      setResourceUrl("");
+      setDueDate("");
+    }
   }
 
   function assignUserToCourse() {
@@ -344,6 +438,10 @@ export function LmsHub({ user }: LmsHubProps) {
                   <input value={title} onChange={(event) => setTitle(event.target.value)} />
                 </label>
                 <label className="field">
+                  <span>Resumen</span>
+                  <input value={summary} onChange={(event) => setSummary(event.target.value)} />
+                </label>
+                <label className="field">
                   <span>Clave de acceso</span>
                   <input value={accessCode} onChange={(event) => setAccessCode(event.target.value)} />
                 </label>
@@ -365,6 +463,19 @@ export function LmsHub({ user }: LmsHubProps) {
                 <button type="button" className="primary-link action-button" onClick={createCourse}>
                   Guardar curso
                 </button>
+                {selectedCourse ? (
+                  <>
+                    <button type="button" className="secondary-link action-button" onClick={loadCourseForEdit}>
+                      Cargar datos del curso
+                    </button>
+                    <button type="button" className="secondary-link action-button" onClick={updateCourse}>
+                      Actualizar curso
+                    </button>
+                    <button type="button" className="secondary-link action-button" onClick={deleteCourse}>
+                      Borrar curso
+                    </button>
+                  </>
+                ) : null}
               </div>
             </section>
 
@@ -483,8 +594,24 @@ export function LmsHub({ user }: LmsHubProps) {
 
             <div className="hero-actions">
               <button type="button" className="primary-link action-button" onClick={publishToCourse}>
-                Publicar en el curso
+                {editingContentId ? "Guardar cambios" : "Publicar en el curso"}
               </button>
+              {editingContentId ? (
+                <button
+                  type="button"
+                  className="secondary-link action-button"
+                  onClick={() => {
+                    setEditingContentId("");
+                    setItemType("texto");
+                    setItemTitle("");
+                    setItemDescription("");
+                    setResourceUrl("");
+                    setDueDate("");
+                  }}
+                >
+                  Cancelar edicion
+                </button>
+              ) : null}
             </div>
           </section>
 
@@ -558,6 +685,22 @@ export function LmsHub({ user }: LmsHubProps) {
                             </a>
                           ) : null}
                           {item.dueDate ? <p>Entrega: {item.dueDate}</p> : null}
+                          <div className="hero-actions">
+                            <button
+                              type="button"
+                              className="secondary-link action-button"
+                              onClick={() => editCourseContent(item)}
+                            >
+                              Editar contenido
+                            </button>
+                            <button
+                              type="button"
+                              className="secondary-link action-button"
+                              onClick={() => deleteCourseContent(item.id)}
+                            >
+                              Borrar contenido
+                            </button>
+                          </div>
                         </article>
                       ))
                     ) : (

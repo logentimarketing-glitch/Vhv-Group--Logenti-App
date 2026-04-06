@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { isUserEligibleForCourse } from "@/lib/course-eligibility";
 import {
@@ -50,6 +51,7 @@ export function CourseAccess({ courseId, user }: CourseAccessProps) {
   const [resourceUrl, setResourceUrl] = useState("");
   const [dueDate, setDueDate] = useState("");
   const [adminPreviewMode, setAdminPreviewMode] = useState(false);
+  const [editingItemId, setEditingItemId] = useState("");
 
   useEffect(() => {
     try {
@@ -94,6 +96,11 @@ export function CourseAccess({ courseId, user }: CourseAccessProps) {
   function saveUnlocks(nextMap: Record<string, string[]>) {
     setUnlockMap(nextMap);
     window.localStorage.setItem(STORAGE_KEYS.courseUnlocks, JSON.stringify(nextMap));
+  }
+
+  function saveCourses(nextCourses: PortalCourse[]) {
+    setCourses(nextCourses);
+    window.localStorage.setItem(STORAGE_KEYS.courses, JSON.stringify(nextCourses));
   }
 
   if (!course) {
@@ -186,7 +193,7 @@ export function CourseAccess({ courseId, user }: CourseAccessProps) {
     if (!canManage || !itemTitle.trim()) return;
 
     const nextItem: PortalCourseContent = {
-      id: crypto.randomUUID(),
+      id: editingItemId || crypto.randomUUID(),
       courseId: activeCourse.id,
       type: itemType,
       title: itemTitle.trim(),
@@ -194,12 +201,13 @@ export function CourseAccess({ courseId, user }: CourseAccessProps) {
       resourceUrl: normalizeMediaUrl(resourceUrl),
       fileName: undefined,
       dueDate: itemType === "asignacion" && dueDate.trim() ? dueDate : undefined,
-      createdAt: new Date().toISOString(),
+      createdAt:
+        courseContent.find((item) => item.id === editingItemId)?.createdAt ?? new Date().toISOString(),
     };
 
     saveContent({
       ...contentMap,
-      [activeCourse.id]: [nextItem, ...courseContent],
+      [activeCourse.id]: [nextItem, ...courseContent.filter((item) => item.id !== nextItem.id)],
     });
 
     setItemTitle("");
@@ -207,6 +215,57 @@ export function CourseAccess({ courseId, user }: CourseAccessProps) {
     setResourceUrl("");
     setDueDate("");
     setItemType("video");
+    setEditingItemId("");
+  }
+
+  function editContent(item: PortalCourseContent) {
+    setEditingItemId(item.id);
+    setItemType(item.type);
+    setItemTitle(item.title);
+    setItemDescription(item.description);
+    setResourceUrl(item.resourceUrl);
+    setDueDate(item.dueDate ?? "");
+  }
+
+  function deleteContent(itemId: string) {
+    if (!canManage) return;
+
+    saveContent({
+      ...contentMap,
+      [activeCourse.id]: courseContent.filter((item) => item.id !== itemId),
+    });
+
+    if (editingItemId === itemId) {
+      setEditingItemId("");
+      setItemType("video");
+      setItemTitle("");
+      setItemDescription("");
+      setResourceUrl("");
+      setDueDate("");
+    }
+  }
+
+  function deleteCurrentCourse() {
+    if (!canManage) return;
+
+    const nextCourses = courses.filter((item) => item.id !== activeCourse.id);
+    const nextContentMap = { ...contentMap };
+    const nextAssignmentMap = { ...assignmentMap };
+    const nextProgressMap = { ...progressMap };
+    const nextUnlockMap = { ...unlockMap };
+
+    delete nextContentMap[activeCourse.id];
+    delete nextAssignmentMap[activeCourse.id];
+    delete nextProgressMap[activeCourse.id];
+    delete nextUnlockMap[activeCourse.id];
+
+    saveCourses(nextCourses);
+    saveContent(nextContentMap);
+    setAssignmentMap(nextAssignmentMap);
+    window.localStorage.setItem(STORAGE_KEYS.courseAssignments, JSON.stringify(nextAssignmentMap));
+    saveProgress(nextProgressMap);
+    saveUnlocks(nextUnlockMap);
+    window.location.href = "/lms";
   }
 
   function updateProgress(nextProgress: number, markComplete?: boolean, extra?: Partial<PortalCourseProgress>) {
@@ -424,6 +483,11 @@ export function CourseAccess({ courseId, user }: CourseAccessProps) {
                     </div>
                   )}
                 </div>
+                <div className="hero-actions">
+                  <Link href="/lms" className="secondary-link action-button">
+                    Volver a cursos
+                  </Link>
+                </div>
               </section>
             ) : null}
 
@@ -484,7 +548,26 @@ export function CourseAccess({ courseId, user }: CourseAccessProps) {
                 </div>
                 <div className="hero-actions">
                   <button type="button" className="primary-link action-button" onClick={createContent}>
-                    Publicar contenido
+                    {editingItemId ? "Guardar cambios" : "Publicar contenido"}
+                  </button>
+                  {editingItemId ? (
+                    <button
+                      type="button"
+                      className="secondary-link action-button"
+                      onClick={() => {
+                        setEditingItemId("");
+                        setItemType("video");
+                        setItemTitle("");
+                        setItemDescription("");
+                        setResourceUrl("");
+                        setDueDate("");
+                      }}
+                    >
+                      Cancelar edicion
+                    </button>
+                  ) : null}
+                  <button type="button" className="secondary-link action-button" onClick={deleteCurrentCourse}>
+                    Borrar curso
                   </button>
                 </div>
               </section>
@@ -569,6 +652,24 @@ export function CourseAccess({ courseId, user }: CourseAccessProps) {
                       </a>
                     ) : null}
                     {item.dueDate ? <p>Entrega: {item.dueDate}</p> : null}
+                    {canManage ? (
+                      <div className="hero-actions">
+                        <button
+                          type="button"
+                          className="secondary-link action-button"
+                          onClick={() => editContent(item)}
+                        >
+                          Editar
+                        </button>
+                        <button
+                          type="button"
+                          className="secondary-link action-button"
+                          onClick={() => deleteContent(item.id)}
+                        >
+                          Borrar
+                        </button>
+                      </div>
+                    ) : null}
                   </article>
                 ))
               ) : (
