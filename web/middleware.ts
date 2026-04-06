@@ -1,16 +1,6 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
-const publicPaths = [
-  "/",
-  "/login",
-  "/api/auth/login",
-  "/api/ai/chatbot",
-  "/api/session",
-  "/manifest.webmanifest",
-  "/sw.js",
-  "/icons",
-];
 const adminOnly = ["/dashboard", "/pipeline", "/marketing", "/talent"];
 const authenticated = ["/home", "/lms", "/community", "/settings", "/talent", "/profiles", "/support", "/messages"];
 
@@ -45,10 +35,6 @@ function parseToken(token: string | undefined) {
 export async function middleware(req: NextRequest) {
   const pathname = req.nextUrl.pathname;
 
-  if (publicPaths.some((path) => pathname === path || pathname.startsWith(`${path}/`))) {
-    return NextResponse.next();
-  }
-
   const token = req.cookies.get("token")?.value;
   const user = parseToken(token);
 
@@ -72,5 +58,17 @@ export async function middleware(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|manifest.webmanifest|sw.js|icons/).*)"],
+  matcher: [
+    "/home/:path*",
+    "/lms/:path*",
+    "/community/:path*",
+    "/settings/:path*",
+    "/talent/:path*",
+    "/profiles/:path*",
+    "/support/:path*",
+    "/messages/:path*",
+    "/dashboard/:path*",
+    "/pipeline/:path*",
+    "/marketing/:path*",
+  ],
 };
