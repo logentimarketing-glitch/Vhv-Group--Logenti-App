@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { dispatchCloudSync, NEWS_UPDATED_EVENT, PROFILE_UPDATED_EVENT } from "@/lib/cloud-sync";
 import { getUserConnections, readConnections, toggleConnection, areUsersConnected } from "@/lib/connections";
 import { canMessageMember, sendDirectMessage } from "@/lib/messages";
 import { readMemberDirectory } from "@/lib/personal-search";
@@ -48,31 +49,43 @@ export function ProfileViewer({ viewer, person }: ProfileViewerProps) {
   }, [person.matricula, viewer.matricula]);
 
   useEffect(() => {
-    const registry = readProfileRegistry();
-    const stored =
-      registry[person.matricula] ??
-      readStorage<StoredProfile | null>(getProfileStorageKey(person.matricula), null);
-    const profile = resolveStoredProfile(
-      {
-        matricula: person.matricula,
-        role: person.role,
-        name: person.name,
-        email: person.email,
-        position: person.position,
-        company: person.company,
-      },
-      stored,
-    );
-    setPhotoUrl(profile.photoUrl);
-    setBio(profile.bio);
+    const syncProfile = () => {
+      const registry = readProfileRegistry();
+      const stored =
+        registry[person.matricula] ??
+        readStorage<StoredProfile | null>(getProfileStorageKey(person.matricula), null);
+      const profile = resolveStoredProfile(
+        {
+          matricula: person.matricula,
+          role: person.role,
+          name: person.name,
+          email: person.email,
+          position: person.position,
+          company: person.company,
+        },
+        stored,
+      );
+      setPhotoUrl(profile.photoUrl);
+      setBio(profile.bio);
+    };
+
+    syncProfile();
+    window.addEventListener(PROFILE_UPDATED_EVENT, syncProfile);
+    return () => window.removeEventListener(PROFILE_UPDATED_EVENT, syncProfile);
   }, [person]);
 
   useEffect(() => {
-    setPosts(
-      readNews().filter(
-        (item) => item.authorMatricula === person.matricula && item.status === "aprobado",
-      ),
-    );
+    const syncPosts = () => {
+      setPosts(
+        readNews().filter(
+          (item) => item.authorMatricula === person.matricula && item.status === "aprobado",
+        ),
+      );
+    };
+
+    syncPosts();
+    window.addEventListener(NEWS_UPDATED_EVENT, syncPosts);
+    return () => window.removeEventListener(NEWS_UPDATED_EVENT, syncPosts);
   }, [person.matricula]);
 
   function handleToggleConnection() {
@@ -122,6 +135,7 @@ export function ProfileViewer({ viewer, person }: ProfileViewerProps) {
 
     writeNews(next);
     setPosts(next.filter((item) => item.authorMatricula === person.matricula && item.status === "aprobado"));
+    dispatchCloudSync();
   }
 
   const isConnected = areUsersConnected(connections, viewer.matricula, person.matricula);

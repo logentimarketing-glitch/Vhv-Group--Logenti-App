@@ -2,6 +2,10 @@
 
 import { useEffect, useState } from "react";
 import {
+  dispatchCloudSync,
+  dispatchProfileUpdated,
+} from "@/lib/cloud-sync";
+import {
   canUseProfilePhoto,
   getDefaultProfile,
   getProfileStorageKey,
@@ -70,6 +74,8 @@ export function ProfileEditor({ user }: ProfileEditorProps) {
     writeStorage(storageKey, nextProfile);
     upsertProfileRegistryEntry(user.matricula, nextProfile);
     setProfile(nextProfile);
+    dispatchProfileUpdated();
+    dispatchCloudSync();
     setSaved(true);
   }
 

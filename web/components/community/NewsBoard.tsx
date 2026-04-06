@@ -3,6 +3,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { PortalNews } from "@/lib/portal-seeds";
 import {
+  dispatchCloudSync,
+  dispatchNewsUpdated,
+} from "@/lib/cloud-sync";
+import {
   addModerationNotification,
   clearModerationNotification,
   getPendingNewsCount,
@@ -95,6 +99,8 @@ export function NewsBoard({ user }: NewsBoardProps) {
   function save(next: PortalNews[]) {
     setItems(next);
     writeNews(next);
+    dispatchNewsUpdated();
+    dispatchCloudSync();
   }
 
   function buildBasePost(payload: BasePostPayload): PortalNews {

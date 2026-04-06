@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { memberSeeds, STORAGE_KEYS } from "@/lib/portal-seeds";
+import { buildCloudSnapshot, CLOUD_SYNC_EVENT } from "@/lib/cloud-sync";
+import { STORAGE_KEYS } from "@/lib/portal-seeds";
 import { getProfileStorageKey, PROFILE_REGISTRY_KEY } from "@/lib/profile";
 import { readStorage, writeStorage } from "@/lib/storage";
 
@@ -100,44 +101,8 @@ function mergeProfiles(
   return merged;
 }
 
-function buildLocalSnapshot(user: RuntimeUser | null) {
-  const members = readStorage(STORAGE_KEYS.members, memberSeeds);
-  const storedProfiles = readStorage<Record<string, unknown>>(PROFILE_REGISTRY_KEY, {});
-  const profiles = { ...storedProfiles } as Record<string, unknown>;
-
-  members.forEach((member) => {
-    const key = getProfileStorageKey(member.matricula);
-    const localProfile = readStorage(key, null);
-    if (localProfile) {
-      profiles[member.matricula] = localProfile;
-    }
-  });
-
-  if (user) {
-    const ownProfile = readStorage(getProfileStorageKey(user.matricula), null);
-    if (ownProfile) {
-      profiles[user.matricula] = ownProfile;
-    }
-  }
-
-  profiles[NOTIFICATIONS_PROFILE_KEY] = readStorage(STORAGE_KEYS.notifications, []);
-
-  return {
-    tenant: "main",
-    members,
-    news: readStorage(STORAGE_KEYS.news, []),
-    courses: readStorage(STORAGE_KEYS.courses, []),
-    courseContent: readStorage(STORAGE_KEYS.courseContent, []),
-    connections: readStorage(STORAGE_KEYS.connections, []),
-    vacancies: readStorage(STORAGE_KEYS.vacancies, []),
-    candidates: readStorage(STORAGE_KEYS.candidates, []),
-    supportThreads: readStorage(STORAGE_KEYS.support, []),
-    profiles,
-  };
-}
-
 function hydrateFromRemote(remote: RemoteStatePayload, user: RuntimeUser | null) {
-  const localSnapshot = buildLocalSnapshot(user);
+  const localSnapshot = buildCloudSnapshot(user);
   const mergedNews = mergeListById(
     (localSnapshot.news as Array<{ id: string; createdAt?: string }>) ?? [],
     (remote.news as Array<{ id: string; createdAt?: string }>) ?? [],
@@ -207,7 +172,7 @@ export function AppRuntime({ user, children }: AppRuntimeProps) {
         setCloudEnabled(true);
         setSyncLabel("Nube activa");
 
-        const localSnapshot = buildLocalSnapshot(user);
+        const localSnapshot = buildCloudSnapshot(user);
         const remoteState = data.state as RemoteStatePayload;
         const remoteHasData =
           hasContent(remoteState.members) ||
@@ -227,7 +192,7 @@ export function AppRuntime({ user, children }: AppRuntimeProps) {
 
         if (remoteHasData) {
           hydrateFromRemote(remoteState, user);
-          snapshotRef.current = JSON.stringify(buildLocalSnapshot(user));
+          snapshotRef.current = JSON.stringify(buildCloudSnapshot(user));
         } else if (localHasData) {
           await fetch(syncUrl, {
             method: "POST",
@@ -248,7 +213,7 @@ export function AppRuntime({ user, children }: AppRuntimeProps) {
     const interval = window.setInterval(async () => {
       if (!cloudEnabled || syncingRef.current) return;
 
-      const nextSnapshot = JSON.stringify(buildLocalSnapshot(user));
+      const nextSnapshot = JSON.stringify(buildCloudSnapshot(user));
 
       if (nextSnapshot === snapshotRef.current) return;
 
@@ -267,9 +232,32 @@ export function AppRuntime({ user, children }: AppRuntimeProps) {
       }
     }, 5000);
 
+    const handleImmediateSync = async () => {
+      if (!cloudEnabled || syncingRef.current) return;
+
+      const nextSnapshot = JSON.stringify(buildCloudSnapshot(user));
+      if (nextSnapshot === snapshotRef.current) return;
+
+      syncingRef.current = true;
+      try {
+        await fetch(syncUrl, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: nextSnapshot,
+        });
+        snapshotRef.current = nextSnapshot;
+      } catch {
+      } finally {
+        syncingRef.current = false;
+      }
+    };
+
+    window.addEventListener(CLOUD_SYNC_EVENT, handleImmediateSync);
+
     return () => {
       cancelled = true;
       window.clearInterval(interval);
+      window.removeEventListener(CLOUD_SYNC_EVENT, handleImmediateSync);
     };
   }, [cloudEnabled, syncUrl, user]);
 
