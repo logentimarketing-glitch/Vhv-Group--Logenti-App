@@ -16,10 +16,10 @@ export default async function SupportPage() {
       <section className="section-heading">
         <div>
           <p className="eyebrow">Soporte tecnico</p>
-          <h1>Soporte tecnico disponible para ti</h1>
+          <h1>Asistente de soporte tecnico</h1>
           <p className="section-copy">
-            Aqui tienes a tu disposicion soporte tecnico para dudas generales, seguimiento y claves de cursos.
-            Si tu caso necesita atencion humana, el sistema lo escala con administracion.
+            Aqui tienes un menu guiado para introduccion, acceso a cursos y atencion humana.
+            Si el bot no puede resolver tu problema, escribe HUMANO y tu caso se escala con Logenti.
           </p>
         </div>
       </section>

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { supportFaq, PortalSupportThread, STORAGE_KEYS } from "@/lib/portal-seeds";
+import { PortalSupportThread, STORAGE_KEYS } from "@/lib/portal-seeds";
 import { getUserStatus } from "@/lib/user-status";
 
 type SupportCenterProps = {
@@ -17,15 +17,9 @@ type ChatbotResponse = {
   reply: string;
   escalated?: boolean;
   eligibleCourses?: { id: string; title: string; role: string }[];
-  granted?: boolean;
-  course?: { id: string; title: string; accessCode: string } | null;
 };
 
-const quickActions = [
-  { id: "faq-course", label: "Clave de grupo", type: "course_key" },
-  { id: "faq-docs", label: "Documentos", type: "message", prompt: "Que documentos internos necesito para mi alta y seguimiento" },
-  { id: "faq-human", label: "Hablar con admin", type: "message", prompt: "Necesito hablar con una persona de administracion" },
-] as const;
+type MenuOption = "introduccion" | "curso" | "humano";
 
 type ChatLine = {
   id: string;
@@ -33,6 +27,27 @@ type ChatLine = {
   author: string;
   text: string;
 };
+
+const supportMenu = [
+  {
+    id: "introduccion" as const,
+    title: "INTRODUCCION",
+    description:
+      "Conoce que hace cada apartado del portal y como usar la plataforma desde tu perfil actual.",
+  },
+  {
+    id: "curso" as const,
+    title: "CURSO",
+    description:
+      "El bot revisa tus credenciales y te comparte las claves de acceso correctas para tus cursos segun tu perfil.",
+  },
+  {
+    id: "humano" as const,
+    title: "HUMANO",
+    description:
+      "Escala tu caso directo con Logenti. Si el bot no resuelve tu problema, escribe HUMANO y te pasamos con una persona real.",
+  },
+];
 
 export function SupportCenter({ user }: SupportCenterProps) {
   const [threads, setThreads] = useState<PortalSupportThread[]>([]);
@@ -42,6 +57,7 @@ export function SupportCenter({ user }: SupportCenterProps) {
   const [selectedCourseId, setSelectedCourseId] = useState("");
   const [eligibleCourses, setEligibleCourses] = useState<Array<{ id: string; title: string; role: string }>>([]);
   const [helperReply, setHelperReply] = useState("");
+  const [selectedMenu, setSelectedMenu] = useState<MenuOption>("introduccion");
   const status = getUserStatus(user);
 
   useEffect(() => {
@@ -52,8 +68,6 @@ export function SupportCenter({ user }: SupportCenterProps) {
       setThreads(JSON.parse(raw) as PortalSupportThread[]);
     } catch {}
   }, []);
-
-  const quickFaq = useMemo(() => supportFaq.slice(0, 5), []);
 
   function save(next: PortalSupportThread[]) {
     setThreads(next);
@@ -74,7 +88,15 @@ export function SupportCenter({ user }: SupportCenterProps) {
     const currentMessage = String(nextMessage ?? message).trim();
     if (!currentMessage) return;
 
-    const result = await askBot({ message: currentMessage, action: "message" });
+    const forceHuman = currentMessage.toUpperCase() === "HUMANO";
+    const result = await askBot({
+      message: currentMessage,
+      action: forceHuman ? "message" : "message",
+    });
+
+    const botReply = forceHuman
+      ? "Tu solicitud fue escalada con Logenti. Un administrador real revisara tu caso desde soporte tecnico."
+      : result.reply;
 
     const nextThread: PortalSupportThread = {
       id: crypto.randomUUID(),
@@ -82,16 +104,20 @@ export function SupportCenter({ user }: SupportCenterProps) {
       senderName: user.name,
       senderRole: user.role,
       question: currentMessage,
-      botReply: result.reply,
+      botReply,
       quickAction,
-      escalated: Boolean(result.escalated),
-      status: result.escalated ? "Pendiente admin" : "Bot",
+      escalated: forceHuman || Boolean(result.escalated),
+      status: forceHuman || result.escalated ? "Pendiente admin" : "Bot",
+      adminReply: undefined,
       createdAt: new Date().toISOString(),
     };
 
     save([nextThread, ...threads]);
     setMessage("");
-    setHelperReply(result.reply);
+    setHelperReply(botReply);
+    if (forceHuman) {
+      setSelectedMenu("humano");
+    }
   }
 
   async function requestCourseKey() {
@@ -111,9 +137,9 @@ export function SupportCenter({ user }: SupportCenterProps) {
       senderMatricula: user.matricula,
       senderName: user.name,
       senderRole: user.role,
-      question: `Solicitud de clave de grupo para matricula ${lookupMatricula}${selectedCourseId ? ` (${selectedCourseId})` : ""}`,
+      question: `CURSO: solicitud de clave para matricula ${lookupMatricula}${selectedCourseId ? ` (${selectedCourseId})` : ""}`,
       botReply: result.reply,
-      quickAction: "course_key",
+      quickAction: "curso",
       escalated: false,
       status: "Bot",
       createdAt: new Date().toISOString(),
@@ -127,7 +153,13 @@ export function SupportCenter({ user }: SupportCenterProps) {
     if (!adminReply) return;
 
     const next = threads.map((thread) =>
-      thread.id === id ? { ...thread, adminReply, status: "Respondido" as const } : thread,
+      thread.id === id
+        ? {
+            ...thread,
+            adminReply,
+            status: "Respondido" as const,
+          }
+        : thread,
     );
     save(next);
     setReplyMap((current) => ({ ...current, [id]: "" }));
@@ -161,7 +193,7 @@ export function SupportCenter({ user }: SupportCenterProps) {
         lines.push({
           id: `${thread.id}-a`,
           sender: "admin",
-          author: "Administrador",
+          author: "Logenti",
           text: thread.adminReply,
         });
       }
@@ -169,15 +201,41 @@ export function SupportCenter({ user }: SupportCenterProps) {
       return lines;
     });
 
+  const introCards = useMemo(
+    () => [
+      {
+        title: "NOVEDADES",
+        description: "Aqui veras los posts del equipo, anuncios y publicaciones internas compartidas por otras personas.",
+      },
+      {
+        title: "MI ESPACIO",
+        description: "Aqui se concentra tu avance, tus cursos inscritos, progreso y logros dentro de la plataforma.",
+      },
+      {
+        title: "CLASES / CURSOS",
+        description: "Aqui entras a tus cursos, materiales y actividades segun tu perfil y las claves autorizadas.",
+      },
+      {
+        title: "PERFIL",
+        description: "Aqui ves tu descripcion, foto y tu propio muro con lo que has publicado.",
+      },
+      {
+        title: "SOPORTE TECNICO",
+        description: "Aqui resuelves dudas con el bot o escribes HUMANO para escalar con una persona real.",
+      },
+    ],
+    [],
+  );
+
   if (user.role === "administrador") {
     return (
       <section className="panel">
         <div className="section-heading">
           <div>
-            <p className="eyebrow">Bandeja de soporte</p>
-            <h2>Conversaciones escaladas</h2>
+            <p className="eyebrow">Bandeja humana</p>
+            <h2>Solicitudes escaladas a Logenti</h2>
             <p className="section-copy">
-              Aqui revisas dudas escaladas, solicitudes de claves y conversaciones que necesitan respuesta humana.
+              Aqui revisas los casos que llegan desde soporte tecnico cuando una persona escribe HUMANO o necesita ayuda real.
             </p>
           </div>
         </div>
@@ -196,14 +254,14 @@ export function SupportCenter({ user }: SupportCenterProps) {
                 </div>
                 {thread.adminReply ? (
                   <div className="notes-box">
-                    <strong>Administrador</strong>
+                    <strong>Logenti</strong>
                     <p>{thread.adminReply}</p>
                   </div>
                 ) : null}
                 {thread.status !== "Respondido" ? (
                   <div className="stack-sm">
                     <label className="field">
-                      <span>Responder</span>
+                      <span>Responder como Logenti</span>
                       <textarea
                         value={replyMap[thread.id] ?? ""}
                         onChange={(event) =>
@@ -227,8 +285,8 @@ export function SupportCenter({ user }: SupportCenterProps) {
             ))
           ) : (
             <div className="empty-state">
-              <strong>Aun no hay conversaciones.</strong>
-              <p>Cuando el bot escale dudas o lleguen solicitudes apareceran aqui.</p>
+              <strong>No hay casos pendientes.</strong>
+              <p>Cuando alguien escriba HUMANO desde soporte tecnico, aparecera aqui.</p>
             </div>
           )}
         </div>
@@ -240,88 +298,101 @@ export function SupportCenter({ user }: SupportCenterProps) {
     <section className="panel">
       <div className="section-heading">
         <div>
-          <p className="eyebrow">Soporte tecnico interno</p>
+          <p className="eyebrow">Asistente guiado</p>
           <h2>Soporte tecnico</h2>
           <p className="section-copy">
-            {status === "TRAINEE"
-              ? "Este soporte tecnico te acompana en tus primeros dias, te orienta sobre cursos asignados y puede compartir las claves de acceso correctas segun tu perfil."
-              : "Aqui tienes a tu disposicion soporte tecnico para dudas generales, seguimiento y claves de cursos. Si tu caso necesita atencion humana, el sistema lo escala con administracion."}
+            Si lo que buscas no se puede solucionar con el bot, escribe <strong>HUMANO</strong> para pasarte con una persona real y que pueda resolver tu problema.
           </p>
         </div>
       </div>
 
       <div className="member-feed-columns">
         <aside className="role-surface">
-          <p className="role-section-label">Preguntas frecuentes</p>
-          <h2>Respuestas rapidas</h2>
+          <p className="role-section-label">Menu de ayuda</p>
+          <h2>Elige como quieres usar soporte</h2>
           <div className="stack-sm">
-            {quickFaq.map((item) => (
-              <div key={item.id} className="role-mini-card">
-                <strong>{item.question}</strong>
-                <p>{item.answer}</p>
-              </div>
+            {supportMenu.map((option) => (
+              <button
+                key={option.id}
+                type="button"
+                className={`role-mini-card ${selectedMenu === option.id ? "social-post-card" : ""}`}
+                onClick={() => setSelectedMenu(option.id)}
+              >
+                <strong>{option.title}</strong>
+                <p>{option.description}</p>
+              </button>
             ))}
           </div>
 
-          <div className="stack-sm">
-            <p className="role-section-label">Acciones rapidas</p>
-            <div className="hero-actions">
-              {quickActions.map((action) => (
-                <button
-                  key={action.id}
-                  type="button"
-                  className="admin-filter-chip"
-                  onClick={() =>
-                    action.type === "course_key"
-                      ? setHelperReply("Ingresa tu matricula y te dire si tienes acceso a una clave.")
-                      : createThread(action.prompt, action.id)
-                  }
-                >
-                  {action.label}
-                </button>
+          {selectedMenu === "introduccion" ? (
+            <div className="stack-sm">
+              <p className="role-section-label">Introduccion</p>
+              {introCards.map((card) => (
+                <div key={card.title} className="role-mini-card">
+                  <strong>{card.title}</strong>
+                  <p>{card.description}</p>
+                </div>
               ))}
             </div>
-          </div>
+          ) : null}
 
-          <div className="role-mini-card">
-            <strong>Clave de grupo</strong>
-            <p>
-              Escribe tu matricula y, si tu perfil esta calificado para la clase correcta,
-              el bot te compartira la clave.
-            </p>
-            <div className="form-grid">
-              <label className="field">
-                <span>Matricula</span>
-                <input value={lookupMatricula} onChange={(event) => setLookupMatricula(event.target.value)} />
-              </label>
-              <label className="field">
-                <span>Curso especifico opcional</span>
-                <select
-                  className="field-select"
-                  value={selectedCourseId}
-                  onChange={(event) => setSelectedCourseId(event.target.value)}
-                >
-                  <option value="">Que el bot elija por mi perfil</option>
-                  {eligibleCourses.map((course) => (
-                    <option key={course.id} value={course.id}>
-                      {course.title}
-                    </option>
-                  ))}
-                </select>
-              </label>
+          {selectedMenu === "curso" ? (
+            <div className="role-mini-card">
+              <strong>CURSO</strong>
+              <p>
+                El bot analiza tu matricula, tu rol y tu perfil para compartirte solo las claves que te corresponden.
+              </p>
+              <div className="form-grid">
+                <label className="field">
+                  <span>Matricula</span>
+                  <input value={lookupMatricula} onChange={(event) => setLookupMatricula(event.target.value)} />
+                </label>
+                <label className="field">
+                  <span>Curso especifico opcional</span>
+                  <select
+                    className="field-select"
+                    value={selectedCourseId}
+                    onChange={(event) => setSelectedCourseId(event.target.value)}
+                  >
+                    <option value="">Que el bot elija por mi perfil</option>
+                    {eligibleCourses.map((course) => (
+                      <option key={course.id} value={course.id}>
+                        {course.title}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+              <div className="hero-actions">
+                <button type="button" className="primary-link action-button" onClick={requestCourseKey}>
+                  Consultar clave
+                </button>
+              </div>
+              {helperReply ? <p className="section-copy">{helperReply}</p> : null}
             </div>
-            <div className="hero-actions">
-              <button type="button" className="primary-link action-button" onClick={requestCourseKey}>
-                Consultar clave
-              </button>
+          ) : null}
+
+          {selectedMenu === "humano" ? (
+            <div className="role-mini-card">
+              <strong>HUMANO</strong>
+              <p>
+                Escribe exactamente <strong>HUMANO</strong> y tu caso se enviara con Logenti para que una persona real lo atienda.
+              </p>
+              <div className="hero-actions">
+                <button type="button" className="primary-link action-button" onClick={() => createThread("HUMANO", "humano")}>
+                  Escalar con Logenti
+                </button>
+              </div>
             </div>
-            {helperReply ? <p className="section-copy">{helperReply}</p> : null}
-          </div>
+          ) : null}
         </aside>
 
         <section className="role-surface">
           <p className="role-section-label">Conversacion</p>
-          <h2>Chat en vivo con soporte tecnico</h2>
+          <h2>Chat con soporte tecnico</h2>
+          <p className="section-copy">
+            Puedes preguntar por accesos, plataforma y cursos. Si el bot no resuelve, escribe HUMANO.
+          </p>
 
           <div className="stack-sm">
             {chatLines.length ? (
@@ -337,7 +408,7 @@ export function SupportCenter({ user }: SupportCenterProps) {
             ) : (
               <div className="empty-state">
                 <strong>Tu chat esta listo.</strong>
-                <p>Escribe tu primera duda y el bot te respondera aqui mismo.</p>
+                <p>Empieza con CURSO, una duda tecnica o escribe HUMANO para que te atienda Logenti.</p>
               </div>
             )}
           </div>
@@ -349,7 +420,7 @@ export function SupportCenter({ user }: SupportCenterProps) {
                 value={message}
                 onChange={(event) => setMessage(event.target.value)}
                 rows={4}
-                placeholder="Ejemplo: no puedo entrar a mi curso o necesito hablar con administracion"
+                placeholder="Ejemplo: CURSO, no puedo entrar a mi aula, o HUMANO"
               />
             </label>
             <div className="hero-actions">
@@ -357,6 +428,7 @@ export function SupportCenter({ user }: SupportCenterProps) {
                 Enviar mensaje
               </button>
             </div>
+            {helperReply ? <span className="pill">{helperReply}</span> : null}
           </div>
         </section>
       </div>
