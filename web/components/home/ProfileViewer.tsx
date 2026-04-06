@@ -33,6 +33,8 @@ export function ProfileViewer({ viewer, person }: ProfileViewerProps) {
   const personStatus = getUserStatus(person);
   const isDemoBot = Boolean(person.isDemoBot);
   const canInteract = true;
+  const isOwnProfile = viewer.matricula === person.matricula;
+  const canViewConnections = !isDemoBot && (isOwnProfile || viewerStatus === "ADMIN");
   const canConnect = !isDemoBot && viewerStatus !== "TRAINEE" && canInteract && viewer.matricula !== person.matricula;
   const canMessage = !isDemoBot && canMessageMember(viewer, person);
   const canReactToPosts = !isDemoBot && (viewerStatus !== "ADMIN" ? personStatus !== "TRAINEE" : true);
@@ -226,6 +228,8 @@ export function ProfileViewer({ viewer, person }: ProfileViewerProps) {
               <strong>Conexiones</strong>
               {isDemoBot ? (
                 <p>Los bots demo no participan en conexiones.</p>
+              ) : !canViewConnections ? (
+                <p>La lista de colegas es privada.</p>
               ) : connectedMembers.length ? (
                 <div className="stack-sm">
                   {connectedMembers.map((connection) => (

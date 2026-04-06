@@ -77,7 +77,10 @@ export function NotificationsCenter({ user }: NotificationsCenterProps) {
                     <div className="stack-sm">
                       <strong>{item.title}</strong>
                       <p>{item.message}</p>
-                      <span className="pill subtle">{new Date(item.createdAt).toLocaleString("es-MX")}</span>
+                      <div className="hero-actions">
+                        {item.priority === "high" ? <span className="pill warning">Prioritaria</span> : null}
+                        <span className="pill subtle">{new Date(item.createdAt).toLocaleString("es-MX")}</span>
+                      </div>
                     </div>
                     {unread ? (
                       <button

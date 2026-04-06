@@ -6,6 +6,7 @@ export type PortalNotification = {
   kind: "info" | "message" | "moderation" | "social";
   title: string;
   message: string;
+  priority?: "normal" | "high";
   createdAt: string;
   targetMatriculas?: string[];
   readBy: string[];

@@ -127,7 +127,16 @@ export function NewsBoard({ user }: NewsBoardProps) {
     });
 
     save([nextItem, ...items]);
-    if (!user.isMaster) addModerationNotification(nextItem.title);
+    if (!user.isMaster) {
+      addModerationNotification(nextItem.title);
+    } else {
+      addNotification({
+        kind: "info",
+        priority: "high",
+        title: "Nuevo aviso de Logenti",
+        message: `${nextItem.title} ya esta disponible para todo el equipo.`,
+      });
+    }
     setTitle("");
     setType("Post");
     setSummary("");
