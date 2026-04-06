@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { STORAGE_KEYS } from "@/lib/portal-seeds";
-import { getProfileStorageKey } from "@/lib/profile";
+import { memberSeeds, STORAGE_KEYS } from "@/lib/portal-seeds";
+import { getProfileStorageKey, PROFILE_REGISTRY_KEY } from "@/lib/profile";
 import { readStorage, writeStorage } from "@/lib/storage";
 
 type RuntimeUser = {
@@ -30,6 +30,8 @@ type RemoteStatePayload = {
   updatedAt: string;
 };
 
+const NOTIFICATIONS_PROFILE_KEY = "__notifications__";
+
 function hasContent(value: unknown) {
   if (Array.isArray(value)) return value.length > 0;
   if (value && typeof value === "object") return Object.keys(value).length > 0;
@@ -37,15 +39,30 @@ function hasContent(value: unknown) {
 }
 
 function buildLocalSnapshot(user: RuntimeUser | null) {
-  const profileKey = user ? getProfileStorageKey(user.matricula) : null;
-  const profiles =
-    user && profileKey
-      ? { [user.matricula]: readStorage(profileKey, {}) }
-      : {};
+  const members = readStorage(STORAGE_KEYS.members, memberSeeds);
+  const storedProfiles = readStorage<Record<string, unknown>>(PROFILE_REGISTRY_KEY, {});
+  const profiles = { ...storedProfiles } as Record<string, unknown>;
+
+  members.forEach((member) => {
+    const key = getProfileStorageKey(member.matricula);
+    const localProfile = readStorage(key, null);
+    if (localProfile) {
+      profiles[member.matricula] = localProfile;
+    }
+  });
+
+  if (user) {
+    const ownProfile = readStorage(getProfileStorageKey(user.matricula), null);
+    if (ownProfile) {
+      profiles[user.matricula] = ownProfile;
+    }
+  }
+
+  profiles[NOTIFICATIONS_PROFILE_KEY] = readStorage(STORAGE_KEYS.notifications, []);
 
   return {
     tenant: "main",
-    members: readStorage(STORAGE_KEYS.members, []),
+    members,
     news: readStorage(STORAGE_KEYS.news, []),
     courses: readStorage(STORAGE_KEYS.courses, []),
     courseContent: readStorage(STORAGE_KEYS.courseContent, []),
@@ -66,6 +83,17 @@ function hydrateFromRemote(remote: RemoteStatePayload, user: RuntimeUser | null)
   writeStorage(STORAGE_KEYS.vacancies, remote.vacancies);
   writeStorage(STORAGE_KEYS.candidates, remote.candidates);
   writeStorage(STORAGE_KEYS.support, remote.supportThreads);
+  const nextProfiles = { ...(remote.profiles ?? {}) } as Record<string, unknown>;
+  const syncedNotifications = Array.isArray(nextProfiles[NOTIFICATIONS_PROFILE_KEY])
+    ? nextProfiles[NOTIFICATIONS_PROFILE_KEY]
+    : [];
+  delete nextProfiles[NOTIFICATIONS_PROFILE_KEY];
+  writeStorage(STORAGE_KEYS.notifications, syncedNotifications);
+  writeStorage(PROFILE_REGISTRY_KEY, nextProfiles);
+
+  Object.entries(nextProfiles).forEach(([matricula, profile]) => {
+    writeStorage(getProfileStorageKey(matricula), profile);
+  });
 
   if (user && remote.profiles?.[user.matricula]) {
     writeStorage(getProfileStorageKey(user.matricula), remote.profiles[user.matricula]);

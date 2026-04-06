@@ -9,6 +9,7 @@ import {
   readNews,
   writeNews,
 } from "@/lib/news";
+import { addNotification } from "@/lib/notifications";
 import { getUserStatus } from "@/lib/user-status";
 import { isImageLikeUrl, normalizeMediaUrl } from "@/lib/media-links";
 
@@ -156,6 +157,7 @@ export function NewsBoard({ user }: NewsBoardProps) {
 
   function approvePost(id: string, nextStatus: "aprobado" | "rechazado") {
     const reason = rejectionReasonMap[id]?.trim() ?? "";
+    const targetItem = items.find((item) => item.id === id);
 
     save(
       items.map((item) => {
@@ -188,11 +190,25 @@ export function NewsBoard({ user }: NewsBoardProps) {
       }),
     );
 
+    if (targetItem && targetItem.authorMatricula !== user.matricula) {
+      addNotification({
+        kind: "moderation",
+        title: nextStatus === "aprobado" ? "Publicacion aprobada" : "Publicacion rechazada",
+        message:
+          nextStatus === "aprobado"
+            ? `${targetItem.title} ya fue aprobada y ahora es visible para el equipo.`
+            : reason || "Tu publicacion necesita ajustes antes de poder mostrarse al equipo.",
+        targetMatriculas: [targetItem.authorMatricula],
+      });
+    }
+
     setRejectionReasonMap((current) => ({ ...current, [id]: "" }));
   }
 
   function toggleStar(id: string) {
     if (!canInteractWithPosts) return;
+    const targetItem = items.find((item) => item.id === id);
+    const willStar = Boolean(targetItem && !targetItem.starredBy.includes(user.matricula));
 
     save(
       items.map((item) =>
@@ -206,12 +222,22 @@ export function NewsBoard({ user }: NewsBoardProps) {
           : item,
       ),
     );
+
+    if (targetItem && willStar && targetItem.authorMatricula !== user.matricula) {
+      addNotification({
+        kind: "social",
+        title: "Nueva reaccion",
+        message: `${user.name} reacciono con estrella a tu publicacion ${targetItem.title}.`,
+        targetMatriculas: [targetItem.authorMatricula],
+      });
+    }
   }
 
   function addComment(id: string) {
     if (!canInteractWithPosts) return;
     const content = commentMap[id]?.trim();
     if (!content) return;
+    const targetItem = items.find((item) => item.id === id);
 
     save(
       items.map((item) =>
@@ -232,6 +258,15 @@ export function NewsBoard({ user }: NewsBoardProps) {
           : item,
       ),
     );
+
+    if (targetItem && targetItem.authorMatricula !== user.matricula) {
+      addNotification({
+        kind: "social",
+        title: "Nuevo comentario",
+        message: `${user.name} comento en tu publicacion ${targetItem.title}.`,
+        targetMatriculas: [targetItem.authorMatricula],
+      });
+    }
 
     setCommentMap((current) => ({ ...current, [id]: "" }));
   }

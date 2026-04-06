@@ -7,7 +7,7 @@ import { canMessageMember, sendDirectMessage } from "@/lib/messages";
 import { readMemberDirectory } from "@/lib/personal-search";
 import { PortalConnection, PortalMember, PortalNews, STORAGE_KEYS } from "@/lib/portal-seeds";
 import { getStatusLabel, getUserStatus } from "@/lib/user-status";
-import { getProfileStorageKey, resolveStoredProfile, type StoredProfile } from "@/lib/profile";
+import { getProfileStorageKey, readProfileRegistry, resolveStoredProfile, type StoredProfile } from "@/lib/profile";
 import { readStorage } from "@/lib/storage";
 import { readNews, writeNews } from "@/lib/news";
 import { isImageLikeUrl, normalizeMediaUrl } from "@/lib/media-links";
@@ -31,10 +31,11 @@ export function ProfileViewer({ viewer, person }: ProfileViewerProps) {
   const [posts, setPosts] = useState<PortalNews[]>([]);
   const viewerStatus = getUserStatus(viewer);
   const personStatus = getUserStatus(person);
+  const isDemoBot = Boolean(person.isDemoBot);
   const canInteract = true;
-  const canConnect = viewerStatus !== "TRAINEE" && canInteract && viewer.matricula !== person.matricula;
-  const canMessage = canMessageMember(viewer, person);
-  const canReactToPosts = viewerStatus !== "ADMIN" ? personStatus !== "TRAINEE" : true;
+  const canConnect = !isDemoBot && viewerStatus !== "TRAINEE" && canInteract && viewer.matricula !== person.matricula;
+  const canMessage = !isDemoBot && canMessageMember(viewer, person);
+  const canReactToPosts = !isDemoBot && (viewerStatus !== "ADMIN" ? personStatus !== "TRAINEE" : true);
 
   useEffect(() => {
     const currentConnections = readConnections();
@@ -45,7 +46,10 @@ export function ProfileViewer({ viewer, person }: ProfileViewerProps) {
   }, [person.matricula, viewer.matricula]);
 
   useEffect(() => {
-    const stored = readStorage<StoredProfile | null>(getProfileStorageKey(person.matricula), null);
+    const registry = readProfileRegistry();
+    const stored =
+      registry[person.matricula] ??
+      readStorage<StoredProfile | null>(getProfileStorageKey(person.matricula), null);
     const profile = resolveStoredProfile(
       {
         matricula: person.matricula,
@@ -129,7 +133,9 @@ export function ProfileViewer({ viewer, person }: ProfileViewerProps) {
             {photoUrl ? <img src={photoUrl} alt={person.name} /> : <span>{person.name.slice(0, 1)}</span>}
           </div>
           <div className="facebook-profile-copy">
-            {personStatus === "ADMIN" ? (
+            {isDemoBot ? (
+              <span className="pill warning">BOT</span>
+            ) : personStatus === "ADMIN" ? (
               <span className="admin-badge">ADMIN STAFF</span>
             ) : (
               <span
@@ -142,7 +148,7 @@ export function ProfileViewer({ viewer, person }: ProfileViewerProps) {
             )}
             <h1>{person.name}</h1>
             <p>{person.position}</p>
-            <span>{person.company}</span>
+            {person.company ? <span>{person.company}</span> : null}
           </div>
         </div>
       </section>
@@ -152,23 +158,32 @@ export function ProfileViewer({ viewer, person }: ProfileViewerProps) {
           <div className="stack-sm">
             <div className="role-mini-card">
               <strong>Rango</strong>
-              <p>{getStatusLabel(personStatus)}</p>
+              <p>{isDemoBot ? "Bot demo interno" : getStatusLabel(personStatus)}</p>
               {viewerStatus === "ADMIN" ? <span>{person.matricula}</span> : null}
             </div>
-            <div className="role-mini-card">
-              <strong>Empresa</strong>
-              <span>{person.company}</span>
-            </div>
+            {person.company ? (
+              <div className="role-mini-card">
+                <strong>Empresa</strong>
+                <span>{person.company}</span>
+              </div>
+            ) : null}
             <div className="role-mini-card">
               <strong>Descripcion</strong>
-              <p>{bio || "Esta persona aun no ha agregado una descripcion en su perfil."}</p>
+              <p>
+                {bio ||
+                  (isDemoBot
+                    ? "Perfil bot de demostracion para pruebas internas."
+                    : "Esta persona aun no ha agregado una descripcion en su perfil.")}
+              </p>
             </div>
           </div>
         </article>
 
         <article className="role-surface">
           <div className="stack-sm">
-            {canConnect ? (
+            {isDemoBot ? (
+              <span className="pill subtle">Perfil bot solo visible para administracion</span>
+            ) : canConnect ? (
               <div className="hero-actions">
                 <button type="button" className="primary-link action-button" onClick={handleToggleConnection}>
                   {isConnected ? "Quitar colega" : "Agregar colega"}
@@ -199,13 +214,19 @@ export function ProfileViewer({ viewer, person }: ProfileViewerProps) {
             ) : (
               <div className="role-mini-card">
                 <strong>Mensajes restringidos</strong>
-                <p>Solo puedes escribir a personal administrativo o a personas de tu misma empresa.</p>
+                <p>
+                  {isDemoBot
+                    ? "Los perfiles bot no admiten mensajes ni conexiones."
+                    : "Solo puedes escribir a personal administrativo o a personas de tu misma empresa."}
+                </p>
               </div>
             )}
 
             <div className="role-mini-card">
               <strong>Conexiones</strong>
-              {connectedMembers.length ? (
+              {isDemoBot ? (
+                <p>Los bots demo no participan en conexiones.</p>
+              ) : connectedMembers.length ? (
                 <div className="stack-sm">
                   {connectedMembers.map((connection) => (
                     <Link
@@ -249,7 +270,7 @@ export function ProfileViewer({ viewer, person }: ProfileViewerProps) {
             ))
           ) : (
             <div className="empty-state">
-              <strong>Este perfil todavía no tiene publicaciones públicas.</strong>
+              <strong>{isDemoBot ? "Este bot no publica contenido social." : "Este perfil aun no tiene publicaciones publicas."}</strong>
             </div>
           )}
         </div>

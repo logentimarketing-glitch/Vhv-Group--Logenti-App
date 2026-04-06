@@ -4,7 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { STORAGE_KEYS } from "@/lib/portal-seeds";
+import { getUnreadNotificationsCount, readNotifications } from "@/lib/notifications";
 
 type Section = {
   href: string;
@@ -17,6 +17,7 @@ type AppNavProps = {
   sections: Section[];
   authenticated: boolean;
   user: {
+    matricula?: string;
     role: "administrador" | "novato" | "usuario";
     isMaster?: boolean;
   } | null;
@@ -27,10 +28,11 @@ export function AppNav({ sections, authenticated, user, brandVariant }: AppNavPr
   const pathname = usePathname();
   const router = useRouter();
   const [pendingApprovals, setPendingApprovals] = useState(0);
+  const [notificationCount, setNotificationCount] = useState(0);
   const [menuOpen, setMenuOpen] = useState(false);
   const adminView = brandVariant === "admin";
-  const showVhvLogo = adminView;
-  const logo = showVhvLogo
+
+  const logo = adminView
     ? {
         src: "/branding/vhv-group.png",
         alt: "VHV Group",
@@ -47,22 +49,25 @@ export function AppNav({ sections, authenticated, user, brandVariant }: AppNavPr
       };
 
   useEffect(() => {
-    if (!user?.isMaster) return;
-
     const syncNotifications = () => {
       try {
-        const raw = window.localStorage.getItem(STORAGE_KEYS.notifications);
-        const items = raw ? (JSON.parse(raw) as string[]) : [];
-        setPendingApprovals(items.length);
+        const notifications = readNotifications();
+        setPendingApprovals(
+          user?.isMaster
+            ? notifications.filter((item) => item.kind === "moderation").length
+            : 0,
+        );
+        setNotificationCount(user?.matricula ? getUnreadNotificationsCount(user.matricula) : 0);
       } catch {
         setPendingApprovals(0);
+        setNotificationCount(0);
       }
     };
 
     syncNotifications();
     window.addEventListener("storage", syncNotifications);
     return () => window.removeEventListener("storage", syncNotifications);
-  }, [user?.isMaster]);
+  }, [user?.isMaster, user?.matricula]);
 
   useEffect(() => {
     setMenuOpen(false);
@@ -145,6 +150,13 @@ export function AppNav({ sections, authenticated, user, brandVariant }: AppNavPr
                 );
               }
 
+              const showBadge =
+                (user?.isMaster && section.href === "/community" && pendingApprovals > 0) ||
+                (section.href === "/notifications" && notificationCount > 0);
+
+              const badgeValue =
+                section.href === "/notifications" ? notificationCount : pendingApprovals;
+
               return (
                 <Link
                   key={section.href}
@@ -153,9 +165,7 @@ export function AppNav({ sections, authenticated, user, brandVariant }: AppNavPr
                 >
                   <span className="topnav-link-content">
                     {section.label}
-                    {user?.isMaster && section.href === "/community" && pendingApprovals > 0 ? (
-                      <span className="topnav-badge">{pendingApprovals}</span>
-                    ) : null}
+                    {showBadge ? <span className="topnav-badge">{badgeValue}</span> : null}
                   </span>
                 </Link>
               );
@@ -188,6 +198,9 @@ export function AppNav({ sections, authenticated, user, brandVariant }: AppNavPr
               );
             }
 
+            const badge =
+              section.href === "/notifications" && notificationCount > 0 ? notificationCount : 0;
+
             return (
               <Link
                 key={section.href}
@@ -198,6 +211,7 @@ export function AppNav({ sections, authenticated, user, brandVariant }: AppNavPr
                   {getMobileIcon(section.href)}
                 </span>
                 <span>{section.label}</span>
+                {badge ? <span className="topnav-badge">{badge}</span> : null}
               </Link>
             );
           })}
@@ -212,6 +226,7 @@ function getMobileIcon(href: string) {
   if (href.includes("/home")) return "⌂";
   if (href.includes("/lms")) return "▣";
   if (href.includes("/messages")) return "✉";
+  if (href.includes("/notifications")) return "🔔";
   if (href.includes("/settings")) return "◎";
   if (href.includes("/dashboard")) return "◫";
   if (href.includes("/pipeline")) return "⋮";

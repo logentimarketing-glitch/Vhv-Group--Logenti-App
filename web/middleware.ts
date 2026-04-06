@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
 const adminOnly = ["/dashboard", "/pipeline", "/marketing", "/talent"];
-const authenticated = ["/home", "/lms", "/community", "/settings", "/talent", "/profiles", "/support", "/messages"];
+const authenticated = ["/home", "/lms", "/community", "/settings", "/talent", "/profiles", "/support", "/messages", "/notifications"];
 
 type SessionRole = "administrador" | "novato" | "usuario";
 type SessionStatus = "TRAINEE" | "ACTIVE_EMPLOYEE" | "ADMIN";
@@ -67,6 +67,7 @@ export const config = {
     "/profiles/:path*",
     "/support/:path*",
     "/messages/:path*",
+    "/notifications/:path*",
     "/dashboard/:path*",
     "/pipeline/:path*",
     "/marketing/:path*",

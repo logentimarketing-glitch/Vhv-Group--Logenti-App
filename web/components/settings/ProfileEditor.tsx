@@ -5,8 +5,10 @@ import {
   canUseProfilePhoto,
   getDefaultProfile,
   getProfileStorageKey,
+  readProfileRegistry,
   resolveStoredProfile,
   StoredProfile,
+  upsertProfileRegistryEntry,
 } from "@/lib/profile";
 import { normalizeMediaUrl } from "@/lib/media-links";
 import { readStorage, writeStorage } from "@/lib/storage";
@@ -35,7 +37,8 @@ export function ProfileEditor({ user }: ProfileEditorProps) {
   const isAdministrativeStaff = status === "ADMIN";
 
   useEffect(() => {
-    const stored = readStorage<StoredProfile | null>(storageKey, null);
+    const registry = readProfileRegistry();
+    const stored = registry[user.matricula] ?? readStorage<StoredProfile | null>(storageKey, null);
     if (!stored) {
       setProfile(getDefaultProfile(user));
       return;
@@ -60,14 +63,13 @@ export function ProfileEditor({ user }: ProfileEditorProps) {
   }
 
   function handleSave() {
-    writeStorage(storageKey, {
+    const nextProfile = {
       ...profile,
       photoUrl: canEditPhoto ? normalizeMediaUrl(profile.photoUrl) : "",
-    });
-    setProfile((current) => ({
-      ...current,
-      photoUrl: canEditPhoto ? normalizeMediaUrl(current.photoUrl) : "",
-    }));
+    };
+    writeStorage(storageKey, nextProfile);
+    upsertProfileRegistryEntry(user.matricula, nextProfile);
+    setProfile(nextProfile);
     setSaved(true);
   }
 
@@ -209,7 +211,7 @@ export function ProfileEditor({ user }: ProfileEditorProps) {
             <button type="button" className="primary-link action-button" onClick={handleSave}>
               Guardar perfil
             </button>
-            {saved ? <span className="pill">Guardado localmente</span> : null}
+            {saved ? <span className="pill">Guardado para todo el equipo</span> : null}
           </div>
         </section>
       </div>
