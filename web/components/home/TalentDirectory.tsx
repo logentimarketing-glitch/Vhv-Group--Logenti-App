@@ -40,14 +40,22 @@ export function TalentDirectory({ viewer, adminMode = false }: TalentDirectoryPr
 
   const viewerStatus = getUserStatus(viewer);
   const canSearch = viewerStatus !== "TRAINEE";
+  const canViewDemoBots = viewerStatus === "ADMIN";
 
   const novatoVisible = (member: PortalMember) =>
     member.role === "administrador" &&
     /reclut|atraccion de talento|rrhh|desarrollo organizacional/i.test(member.position);
 
+  const demoBots = useMemo(
+    () => (canViewDemoBots ? members.filter((member) => member.isDemoBot) : []),
+    [canViewDemoBots, members],
+  );
+
   const filteredMembers = useMemo(
     () =>
       members.filter((member) => {
+        if (member.isDemoBot) return false;
+
         const visibleForViewer =
           viewerStatus === "TRAINEE"
             ? novatoVisible(member)
@@ -187,7 +195,7 @@ export function TalentDirectory({ viewer, adminMode = false }: TalentDirectoryPr
                     )}
                     <strong>{profile.name}</strong>
                     <p>{profile.position}</p>
-                    <p>{profile.company}</p>
+                    {profile.company ? <p>{profile.company}</p> : null}
                   </div>
                   <span className="pill subtle">{getMemberStatus(profile)}</span>
                 </Link>
@@ -235,7 +243,7 @@ export function TalentDirectory({ viewer, adminMode = false }: TalentDirectoryPr
                     )}
                     <strong>{profile.name}</strong>
                     <p>{profile.position}</p>
-                    <p>{profile.company}</p>
+                    {profile.company ? <p>{profile.company}</p> : null}
                   </div>
                   <span className="pill subtle">{profile.role}</span>
                 </Link>
@@ -253,6 +261,41 @@ export function TalentDirectory({ viewer, adminMode = false }: TalentDirectoryPr
           )}
         </section>
       ))}
+
+      {canViewDemoBots ? (
+        <section className={`panel ${adminMode ? "admin-panel" : ""}`}>
+          <div className="section-heading">
+            <div>
+              <p className={`eyebrow ${adminMode ? "admin-eyebrow" : ""}`}>Apartado interno</p>
+              <h2>Demo bots</h2>
+            </div>
+          </div>
+
+          {demoBots.length ? (
+            <div className="card-grid card-grid-3">
+              {demoBots.map((profile) => (
+                <Link
+                  key={`bot-${profile.matricula}`}
+                  href={`/profiles/${profile.matricula}`}
+                  className={adminMode ? "admin-candidate-row" : "role-mini-card"}
+                >
+                  <div>
+                    <span className="pill warning directory-badge">BOT</span>
+                    <strong>{profile.name}</strong>
+                    <p>{profile.position}</p>
+                  </div>
+                  <span className="pill subtle">{getStatusLabel(getUserStatus(profile))}</span>
+                </Link>
+              ))}
+            </div>
+          ) : (
+            <div className="empty-state">
+              <strong>No hay bots demo cargados.</strong>
+              <p>Cuando exista un perfil bot interno para pruebas lo veras aqui.</p>
+            </div>
+          )}
+        </section>
+      ) : null}
     </div>
   );
 }

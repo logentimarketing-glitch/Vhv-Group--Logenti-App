@@ -126,6 +126,7 @@ export type PortalMember = {
   email: string;
   position: string;
   company: string;
+  isDemoBot?: boolean;
 };
 
 export type PortalSupportThread = {
@@ -219,12 +220,17 @@ export const STORAGE_KEYS = {
   notifications: "vhv-notifications",
 } as const;
 
-export const memberSeeds: PortalMember[] = demoUsers.map((user) => ({
-  matricula: user.matricula,
-  name: user.name,
-  role: user.role,
-  status: user.status,
-  email: user.email,
-  position: user.position,
-  company: user.company ?? "Logenti",
-}));
+export const memberSeeds: PortalMember[] = demoUsers.map((user) => {
+  const isDemoBot = user.matricula === "240201" || user.matricula === "778901";
+
+  return {
+    matricula: user.matricula,
+    name: user.name,
+    role: user.role,
+    status: user.status,
+    email: user.email,
+    position: user.position,
+    company: isDemoBot ? "" : user.company ?? "Logenti",
+    isDemoBot,
+  };
+});

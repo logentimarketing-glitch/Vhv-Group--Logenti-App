@@ -16,6 +16,8 @@ function alignMemberWithDemoAccount(member: PortalMember) {
   const demoUser = getDemoUserByMatricula(member.matricula);
   if (!demoUser) return normalizeMemberCompany(member);
 
+  const isDemoBot = member.isDemoBot ?? (demoUser.matricula === "240201" || demoUser.matricula === "778901");
+
   return normalizeMemberCompany({
     ...member,
     role: demoUser.role,
@@ -23,7 +25,8 @@ function alignMemberWithDemoAccount(member: PortalMember) {
     name: demoUser.name,
     email: demoUser.email,
     position: demoUser.position,
-    company: demoUser.company ?? member.company,
+    company: isDemoBot ? "" : demoUser.company ?? member.company,
+    isDemoBot,
   });
 }
 
