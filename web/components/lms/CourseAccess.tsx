@@ -507,6 +507,7 @@ export function CourseAccess({ courseId, user }: CourseAccessProps) {
                       onChange={(event) => setItemType(event.target.value as PortalCourseContent["type"])}
                     >
                       <option value="texto">Texto</option>
+                      <option value="codigo">Codigo</option>
                       <option value="foto">Foto</option>
                       <option value="video">Video</option>
                       <option value="blog">Blog</option>
@@ -519,22 +520,29 @@ export function CourseAccess({ courseId, user }: CourseAccessProps) {
                     <input value={itemTitle} onChange={(event) => setItemTitle(event.target.value)} />
                   </label>
                   <label className="field field-span-2">
-                    <span>Contenido o descripcion</span>
+                    <span>{itemType === "codigo" ? "Codigo del programa" : "Contenido o descripcion"}</span>
                     <textarea
                       value={itemDescription}
                       onChange={(event) => setItemDescription(event.target.value)}
-                      rows={4}
+                      rows={itemType === "codigo" ? 10 : 4}
+                      placeholder={
+                        itemType === "codigo"
+                          ? "Pega aqui el codigo que quieres compartir en el curso."
+                          : undefined
+                      }
                     />
                   </label>
-                  <label className="field">
-                    <span>Enlace del recurso</span>
-                    <input
-                      type="url"
-                      value={resourceUrl}
-                      onChange={(event) => setResourceUrl(event.target.value)}
-                      placeholder="https://drive.google.com/... o https://..."
-                    />
-                  </label>
+                  {itemType !== "codigo" ? (
+                    <label className="field">
+                      <span>Enlace del recurso</span>
+                      <input
+                        type="url"
+                        value={resourceUrl}
+                        onChange={(event) => setResourceUrl(event.target.value)}
+                        placeholder="https://drive.google.com/... o https://..."
+                      />
+                    </label>
+                  ) : null}
                   {itemType === "asignacion" ? (
                     <label className="field">
                       <span>Fecha limite</span>
@@ -636,7 +644,13 @@ export function CourseAccess({ courseId, user }: CourseAccessProps) {
                 courseContent.map((item) => (
                   <article key={item.id} className="role-mini-card">
                     <strong>{item.title}</strong>
-                    <p>{item.description || "Sin descripcion adicional."}</p>
+                    {item.type === "codigo" ? (
+                      <pre className="course-code-block">
+                        <code>{item.description || "// Sin codigo cargado."}</code>
+                      </pre>
+                    ) : (
+                      <p>{item.description || "Sin descripcion adicional."}</p>
+                    )}
                     <span>{item.type}</span>
                     {item.resourceUrl && isImageLikeUrl(item.resourceUrl) ? (
                       <img src={normalizeMediaUrl(item.resourceUrl)} alt={item.title} className="post-image" />

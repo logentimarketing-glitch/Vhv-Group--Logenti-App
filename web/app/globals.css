@@ -1351,6 +1351,27 @@ a { color: inherit; text-decoration: none; }
   margin-top: 0.25rem;
 }
 
+.course-code-block {
+  margin: 0;
+  padding: 1rem;
+  border-radius: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(10, 12, 14, 0.9);
+  color: #dff7ff;
+  overflow-x: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family: "IBM Plex Mono", "Courier New", monospace;
+  font-size: 0.92rem;
+  line-height: 1.55;
+}
+
+.app-theme-admin .course-code-block {
+  border-color: rgba(212, 167, 74, 0.22);
+  background: rgba(20, 14, 8, 0.92);
+  color: #f7ecd1;
+}
+
 .role-experience-admin .role-mini-card {
   background: rgba(212, 167, 74, 0.08);
   border-color: rgba(212, 167, 74, 0.18);

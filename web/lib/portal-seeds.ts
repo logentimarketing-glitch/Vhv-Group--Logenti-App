@@ -18,7 +18,7 @@ export type PortalCourse = {
 export type PortalCourseContent = {
   id: string;
   courseId: string;
-  type: "texto" | "foto" | "video" | "blog" | "archivo" | "asignacion";
+  type: "texto" | "foto" | "video" | "blog" | "archivo" | "asignacion" | "codigo";
   title: string;
   description: string;
   resourceUrl: string;
