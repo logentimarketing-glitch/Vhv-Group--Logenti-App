@@ -3,6 +3,7 @@ import { readStorage, writeStorage } from "@/lib/storage";
 import { readMemberDirectory } from "@/lib/personal-search";
 import { getUserStatus } from "@/lib/user-status";
 import { PortalMember } from "@/lib/portal-seeds";
+import { addNotification } from "@/lib/notifications";
 
 type SendMessageInput = {
   from: string;
@@ -92,6 +93,12 @@ export function sendDirectMessage(input: SendMessageInput) {
   ];
 
   saveDirectMessages(next);
+  addNotification({
+    kind: "message",
+    title: `Nuevo mensaje de ${input.fromName}`,
+    message: content,
+    targetMatriculas: [input.to],
+  });
   return next;
 }
 

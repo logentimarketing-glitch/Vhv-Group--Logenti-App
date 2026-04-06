@@ -129,8 +129,17 @@ export function LmsHub({ user }: LmsHubProps) {
     if (!selectedCourse) return [];
 
     return members.filter((member) => {
-      if (selectedCourse.role === "administrador") return member.role === "administrador";
-      return member.role === selectedCourse.role;
+      if (member.isDemoBot) return false;
+
+      return isUserEligibleForCourse(
+        {
+          matricula: member.matricula,
+          role: member.role,
+          company: member.company,
+          position: member.position,
+        },
+        selectedCourse,
+      );
     });
   }, [members, selectedCourse]);
 
@@ -380,7 +389,7 @@ export function LmsHub({ user }: LmsHubProps) {
                     <option value="">Selecciona una persona</option>
                     {assignableMembers.map((member) => (
                       <option key={member.matricula} value={member.matricula}>
-                        {member.name} - {member.position}
+                        {member.name} - {member.position} ({member.role})
                       </option>
                     ))}
                   </select>

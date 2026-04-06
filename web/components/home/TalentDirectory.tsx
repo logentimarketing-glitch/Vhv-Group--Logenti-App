@@ -284,7 +284,7 @@ export function TalentDirectory({ viewer, adminMode = false }: TalentDirectoryPr
                     <strong>{profile.name}</strong>
                     <p>{profile.position}</p>
                   </div>
-                  <span className="pill subtle">{getStatusLabel(getUserStatus(profile))}</span>
+                  <span className="pill subtle">Demo interno</span>
                 </Link>
               ))}
             </div>

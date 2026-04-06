@@ -1,5 +1,6 @@
 import { PortalNews, STORAGE_KEYS } from "@/lib/portal-seeds";
 import { readStorage, updateStorage, writeStorage } from "@/lib/storage";
+import { addNotification, readNotifications, writeNotifications } from "@/lib/notifications";
 
 const MODERATION_PREFIX = "Pendiente de aprobacion: ";
 
@@ -12,16 +13,20 @@ export function writeNews(items: PortalNews[]) {
 }
 
 export function addModerationNotification(postTitle: string) {
-  return updateStorage<string[]>(STORAGE_KEYS.notifications, [], (current) => [
-    `${MODERATION_PREFIX}${postTitle}`,
-    ...current,
-  ]);
+  return addNotification({
+    kind: "moderation",
+    title: "Publicacion pendiente",
+    message: `${MODERATION_PREFIX}${postTitle}`,
+    targetMatriculas: undefined,
+  });
 }
 
 export function clearModerationNotification(postTitle: string) {
-  return updateStorage<string[]>(STORAGE_KEYS.notifications, [], (current) =>
-    current.filter((item) => item !== `${MODERATION_PREFIX}${postTitle}`),
+  const next = readNotifications().filter(
+    (item) => item.message !== `${MODERATION_PREFIX}${postTitle}`,
   );
+  writeNotifications(next);
+  return next;
 }
 
 export function getPendingNewsCount(items: PortalNews[]) {

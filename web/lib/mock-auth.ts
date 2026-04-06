@@ -127,7 +127,7 @@ export const demoUsers: DemoUser[] = [
     status: "TRAINEE",
     name: "Novato Logenti",
     email: "",
-    position: "Promotor OUI - primeros dias",
+    position: "Bot demo de onboarding",
     firstName: "Novato",
     lastName: "Logenti",
     state: "Sin asignar",
@@ -141,7 +141,7 @@ export const demoUsers: DemoUser[] = [
     status: "ACTIVE_EMPLOYEE",
     name: "Usuario Logenti",
     email: "",
-    position: "Promotor OUI - colaborador establecido",
+    position: "Bot demo de usuario activo",
     showInPortal: false,
   },
 ];

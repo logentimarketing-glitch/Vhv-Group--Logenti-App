@@ -1,3 +1,4 @@
+import { readStorage, writeStorage } from "@/lib/storage";
 import { normalizeMediaUrl } from "@/lib/media-links";
 
 export type StoredProfile = {
@@ -8,6 +9,8 @@ export type StoredProfile = {
   photoUrl: string;
   bio: string;
 };
+
+export const PROFILE_REGISTRY_KEY = "vhv-profile-directory";
 
 type ProfileUser = {
   matricula?: string;
@@ -25,6 +28,24 @@ export function canUseProfilePhoto(user: Pick<ProfileUser, "matricula" | "isMast
 
 export function getProfileStorageKey(matricula: string) {
   return `vhv-profile-${matricula}`;
+}
+
+export function readProfileRegistry() {
+  return readStorage<Record<string, StoredProfile>>(PROFILE_REGISTRY_KEY, {});
+}
+
+export function writeProfileRegistry(profiles: Record<string, StoredProfile>) {
+  writeStorage(PROFILE_REGISTRY_KEY, profiles);
+}
+
+export function upsertProfileRegistryEntry(matricula: string, profile: StoredProfile) {
+  const current = readProfileRegistry();
+  const next = {
+    ...current,
+    [matricula]: profile,
+  };
+  writeProfileRegistry(next);
+  return next;
 }
 
 export function getDefaultProfile(user: ProfileUser): StoredProfile {
