@@ -20,5 +20,6 @@
     "**/ai/**": true,
     "**/database/**": true
   },
-  "typescript.tsserver.maxTsServerMemory": 4096
+  "js/ts.implicitProjectConfig.checkJs": false,
+  "js/ts.tsserver.maxTsServerMemory": 4096
 }
