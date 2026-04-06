@@ -49,6 +49,7 @@ export function CourseAccess({ courseId, user }: CourseAccessProps) {
   const [itemDescription, setItemDescription] = useState("");
   const [resourceUrl, setResourceUrl] = useState("");
   const [dueDate, setDueDate] = useState("");
+  const [adminPreviewMode, setAdminPreviewMode] = useState(false);
 
   useEffect(() => {
     try {
@@ -131,6 +132,7 @@ export function CourseAccess({ courseId, user }: CourseAccessProps) {
 
   const canManage = user.role === "administrador" && activeCourse.managedBy === "admin";
   const unlocked = user.role === "administrador" || isUnlockedForCourse(unlockMap, activeCourse.id, user.matricula);
+  const showLearnerView = !canManage || adminPreviewMode;
 
   useEffect(() => {
     setGranted(unlocked);
@@ -330,7 +332,19 @@ export function CourseAccess({ courseId, user }: CourseAccessProps) {
           </div>
         ) : (
           <div className="stack-lg">
-            {!canManage && user.role !== "administrador" ? (
+            {canManage ? (
+              <div className="hero-actions">
+                <button
+                  type="button"
+                  className={adminPreviewMode ? "primary-link action-button" : "secondary-link action-button"}
+                  onClick={() => setAdminPreviewMode((current) => !current)}
+                >
+                  {adminPreviewMode ? "Volver a gestion admin" : "Ver como alumno"}
+                </button>
+              </div>
+            ) : null}
+
+            {showLearnerView && user.role !== "administrador" ? (
               <section className="panel">
                 <div className="section-heading">
                   <div>
@@ -378,6 +392,37 @@ export function CourseAccess({ courseId, user }: CourseAccessProps) {
                           ? "Revisión pendiente de ajustes"
                           : "Sigue completando tareas"}
                   </span>
+                </div>
+              </section>
+            ) : null}
+
+            {showLearnerView && user.role === "administrador" ? (
+              <section className="panel">
+                <div className="section-heading">
+                  <div>
+                    <p className="eyebrow">Vista alumno</p>
+                    <h2>Asi se ve este curso para talento</h2>
+                    <p className="section-copy">
+                      Aqui revisas el contenido publicado y el flujo visible para novatos y usuarios sin salir del curso.
+                    </p>
+                  </div>
+                </div>
+                <div className="stack-sm">
+                  {checklistItems.length ? (
+                    checklistItems.map((item) => (
+                      <label key={item.id} className="role-mini-card lms-checklist-item">
+                        <input type="checkbox" checked={false} readOnly />
+                        <div>
+                          <strong>{item.title}</strong>
+                          <p>{item.description || "Tarea del curso"}</p>
+                        </div>
+                      </label>
+                    ))
+                  ) : (
+                    <div className="empty-state">
+                      <strong>Aun no hay tareas cargadas en este curso.</strong>
+                    </div>
+                  )}
                 </div>
               </section>
             ) : null}

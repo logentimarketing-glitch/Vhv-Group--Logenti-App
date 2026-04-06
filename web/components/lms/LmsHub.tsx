@@ -56,6 +56,23 @@ export function LmsHub({ user }: LmsHubProps) {
   const [dueDate, setDueDate] = useState("");
   const [lockedMessage, setLockedMessage] = useState("");
 
+  const mergedMembers = useMemo(() => {
+    const byMatricula = new Map<string, PortalMember>();
+
+    for (const seed of memberSeeds) {
+      byMatricula.set(seed.matricula, seed);
+    }
+
+    for (const member of members) {
+      byMatricula.set(member.matricula, {
+        ...byMatricula.get(member.matricula),
+        ...member,
+      });
+    }
+
+    return Array.from(byMatricula.values());
+  }, [members]);
+
   useEffect(() => {
     const migrated = migrateLmsStorageIfNeeded();
     setCourses(migrated.courses);
@@ -126,22 +143,8 @@ export function LmsHub({ user }: LmsHubProps) {
   );
 
   const assignableMembers = useMemo(() => {
-    if (!selectedCourse) return [];
-
-    return members.filter((member) => {
-      if (member.isDemoBot) return false;
-
-      return isUserEligibleForCourse(
-        {
-          matricula: member.matricula,
-          role: member.role,
-          company: member.company,
-          position: member.position,
-        },
-        selectedCourse,
-      );
-    });
-  }, [members, selectedCourse]);
+    return mergedMembers.filter((member) => !member.isDemoBot && member.role !== "administrador");
+  }, [mergedMembers]);
 
   function publishToCourse() {
     if (!permissions?.canManageCourses || !selectedCourseId || !itemTitle.trim()) return;
@@ -172,7 +175,7 @@ export function LmsHub({ user }: LmsHubProps) {
   function assignUserToCourse() {
     if (!permissions?.canManageCourses || !selectedCourseId || !selectedAssignee) return;
 
-    const member = members.find((entry) => entry.matricula === selectedAssignee);
+    const member = mergedMembers.find((entry) => entry.matricula === selectedAssignee);
     if (!member) return;
 
     const currentAssignments = assignmentMap[selectedCourseId] ?? [];
@@ -231,6 +234,16 @@ export function LmsHub({ user }: LmsHubProps) {
           visibleCourses.reduce((sum, course) => sum + (currentUserProgress[course.id]?.progress ?? 0), 0) /
             visibleCourses.length,
         );
+
+  const selectedCourseAssignments = selectedCourse ? assignmentMap[selectedCourse.id] ?? [] : [];
+  const selectedCourseContent = selectedCourse ? contentMap[selectedCourse.id] ?? [] : [];
+  const selectedCourseParticipants = selectedCourse
+    ? selectedCourseAssignments
+        .map((assignment) =>
+          mergedMembers.find((member) => member.matricula === assignment.matricula),
+        )
+        .filter((member): member is PortalMember => Boolean(member))
+    : [];
 
   const introCopy =
     user.role === "administrador"
@@ -389,7 +402,7 @@ export function LmsHub({ user }: LmsHubProps) {
                     <option value="">Selecciona una persona</option>
                     {assignableMembers.map((member) => (
                       <option key={member.matricula} value={member.matricula}>
-                        {member.name} - {member.position} ({member.role})
+                        {member.name} - {member.position} ({member.status === "TRAINEE" ? "novato" : "usuario"})
                       </option>
                     ))}
                   </select>
@@ -474,6 +487,95 @@ export function LmsHub({ user }: LmsHubProps) {
               </button>
             </div>
           </section>
+
+          {selectedCourse ? (
+            <section className="panel">
+              <div className="section-heading">
+                <div>
+                  <p className="eyebrow">Vista previa</p>
+                  <h2>Asi se vera el curso para talento</h2>
+                  <p className="section-copy">
+                    Esta vista te deja revisar el contenido publicado y las personas asignadas sin salir del panel administrativo.
+                  </p>
+                </div>
+              </div>
+
+              <div className="admin-overview-grid">
+                <article className="panel admin-metric-card">
+                  <p className="role-section-label">Curso</p>
+                  <strong>{selectedCourse.title}</strong>
+                  <p>{selectedCourse.summary}</p>
+                </article>
+                <article className="panel admin-metric-card">
+                  <p className="role-section-label">Personas asignadas</p>
+                  <strong>{selectedCourseParticipants.length}</strong>
+                  <p>Novatos y usuarios inscritos en este curso.</p>
+                </article>
+                <article className="panel admin-metric-card">
+                  <p className="role-section-label">Contenidos</p>
+                  <strong>{selectedCourseContent.length}</strong>
+                  <p>Materiales y tareas visibles dentro del aula.</p>
+                </article>
+              </div>
+
+              <div className="card-grid content-split">
+                <section className="role-mini-card">
+                  <strong>Participantes</strong>
+                  <div className="stack-sm">
+                    {selectedCourseParticipants.length ? (
+                      selectedCourseParticipants.map((member) => (
+                        <div key={member.matricula} className="role-mini-card">
+                          <strong>{member.name}</strong>
+                          <p>{member.position}</p>
+                          <span>{member.status === "TRAINEE" ? "Novato" : "Usuario"}</span>
+                        </div>
+                      ))
+                    ) : (
+                      <div className="empty-state">
+                        <strong>No hay personas asignadas todavia.</strong>
+                      </div>
+                    )}
+                  </div>
+                </section>
+
+                <section className="role-mini-card">
+                  <strong>Vista del contenido</strong>
+                  <div className="stack-sm">
+                    {selectedCourseContent.length ? (
+                      selectedCourseContent.map((item) => (
+                        <article key={item.id} className="role-mini-card">
+                          <strong>{item.title}</strong>
+                          <p>{item.description || "Sin descripcion adicional."}</p>
+                          <span>{item.type}</span>
+                          {item.resourceUrl ? (
+                            <a
+                              href={item.resourceUrl}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="secondary-link"
+                            >
+                              Abrir recurso
+                            </a>
+                          ) : null}
+                          {item.dueDate ? <p>Entrega: {item.dueDate}</p> : null}
+                        </article>
+                      ))
+                    ) : (
+                      <div className="empty-state">
+                        <strong>El curso aun no tiene contenido publicado.</strong>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="hero-actions">
+                    <Link href={`/lms/${selectedCourse.id}`} className="primary-link action-button">
+                      Abrir vista del curso
+                    </Link>
+                  </div>
+                </section>
+              </div>
+            </section>
+          ) : null}
         </div>
       ) : null}
 
